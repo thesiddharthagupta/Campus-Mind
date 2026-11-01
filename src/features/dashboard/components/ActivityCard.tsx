@@ -1,0 +1,3 @@
+import { ArrowUpRight, Bookmark, FileText } from 'lucide-react';
+import type { Material } from '../../../shared/types/common';
+export function ActivityCard({ material }: { material: Material }) { return <button className="activity-row"><span className={`file-icon ${material.color}`}><FileText size={18}/></span><span className="activity-main"><strong>{material.title}</strong><small>{material.subject}<i>·</i>{material.kind}</small></span><span className="activity-date">{material.date}</span>{material.bookmarked && <Bookmark className="activity-bookmark" size={15} fill="currentColor"/>}<ArrowUpRight className="activity-arrow" size={16}/></button>; }

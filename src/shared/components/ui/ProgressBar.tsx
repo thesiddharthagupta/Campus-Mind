@@ -1,0 +1,1 @@
+export function ProgressBar({ value, color = 'var(--accent)' }: { value: number; color?: string }) { return <div className="progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${value}%`, background: color }} /></div>; }
