@@ -3,3 +3,4 @@ export type Note = { id: string; title: string; subject: string; updatedAt: stri
 export type QuizQuestionData = { id: string; prompt: string; options: string[] };
 export type Quiz = { id: string; title: string; subject: string; questions: number; duration: number; difficulty: 'Easy' | 'Medium' | 'Hard'; lastScore?: number; attempts: number; items?: QuizQuestionData[] };
 export type Subject = { id: string; name: string; code: string; modules: number; progress: number; tint: string; icon: string };
+export type StudySession = { id: string; subjectId: string | null; subject: string; durationSeconds: number; startedAt: string };

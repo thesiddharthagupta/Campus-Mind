@@ -16,10 +16,11 @@ The app starts in **demo mode** with sample academic content and browser-local p
 - `src/features` contains isolated product areas; each keeps its pages, components, hooks, services, and types together. Authentication uses Supabase Auth when credentials are configured, with protected feature routes.
 - `src/shared` contains reusable layout, UI, and feedback components.
 - `src/lib` contains external service clients.
-- `supabase/migrations` contains the initial relational schema and Row Level Security policies.
+- `supabase/migrations` contains the relational schema and Row Level Security policies.
 
 Feature components display data and raise callbacks. Feature services own persistence. Pages compose components rather than embedding all UI and data logic in one file.
 
 ## Demo limitations
 
-Browser storage is used only in demo mode. With Supabase configured, authentication, materials, bookmarks, notes, quiz attempts, reports, academic browsing, and topic completion use Supabase services and Row Level Security. Weekly study-time summaries still use sample values, and a moderator review interface remains to be built. Production use also requires reviewed database policies and server-side upload scanning. Do not treat browser storage as secure authentication or authorization.
+Browser storage is used only in demo mode. Study sessions are saved when a focus session is finished and power the weekly study-time, streak, and goal summaries. With Supabase configured, sessions and the other account data use Supabase services and Row Level Security. A moderator review interface remains to be built. Production use also requires reviewed database policies and server-side upload scanning. Do not treat browser storage as secure authentication or authorization.
+

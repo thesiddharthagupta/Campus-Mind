@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { demoAcademicStructure, demoCompletedTopicIds, demoMaterials, demoNotes, demoQuizzes } from '../features/dashboard/data/demoData';
-import type { Material, Note, Quiz, Subject } from '../shared/types/common';
+import type { Material, Note, Quiz, StudySession, Subject } from '../shared/types/common';
 import type { AcademicSubject } from '../features/academic/types/academic.types';
 import { AuthProvider } from '../features/auth/components/AuthProvider';
 import { useAuth } from '../features/auth/hooks/useAuth';
@@ -8,6 +8,7 @@ import { listMaterials, setMaterialBookmark, uploadMaterial } from '../features/
 import { createNote, listNotes, saveNote as saveRemoteNote } from '../features/notes/services/notesService';
 import { listQuizzes, submitQuizAttempt } from '../features/quizzes/services/quizService';
 import { loadAcademicStructure, setTopicCompleted } from '../features/academic/services/academicService';
+import { createStudySession, listStudySessions } from '../features/studySessions/services/studySessionService';
 
 type CampusContextValue = {
   materials: Material[];
@@ -18,6 +19,9 @@ type CampusContextValue = {
   quizzes: Quiz[];
   quizzesLoading: boolean;
   quizzesError: string | null;
+  studySessions: StudySession[];
+  studySessionsLoading: boolean;
+  studySessionsError: string | null;
   subjects: Subject[];
   academicSubjects: AcademicSubject[];
   completedTopicIds: string[];
@@ -30,6 +34,7 @@ type CampusContextValue = {
   addNote: (note: Note) => Promise<{ note: Note | null; error: string | null }>;
   updateNote: (note: Note) => void;
   completeQuiz: (id: string, answers: Record<string, number>, localScore: number) => Promise<{ score: number | null; error: string | null }>;
+  addStudySession: (session: Omit<StudySession, 'id'>) => Promise<{ error: string | null }>;
   toggleTopicCompletion: (topicId: string, completed: boolean) => Promise<{ error: string | null }>;
 };
 const CampusContext = createContext<CampusContextValue | null>(null);
@@ -59,6 +64,9 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
   const [quizzes, setQuizzes] = useState<Quiz[]>(() => demoMode ? readStored('cm-quizzes', demoQuizzes) : []);
   const [quizzesLoading, setQuizzesLoading] = useState(false);
   const [quizzesError, setQuizzesError] = useState<string | null>(null);
+  const [studySessions, setStudySessions] = useState<StudySession[]>(() => demoMode ? readStored('cm-study-sessions', []) : []);
+  const [studySessionsLoading, setStudySessionsLoading] = useState(false);
+  const [studySessionsError, setStudySessionsError] = useState<string | null>(null);
   const [completedTopicIds, setCompletedTopicIds] = useState<string[]>(() => demoMode ? readStored('cm-topic-progress', demoCompletedTopicIds) : []);
   const [academicSubjects, setAcademicSubjects] = useState<AcademicSubject[]>(() => demoMode ? withCompletion(demoAcademicStructure, readStored('cm-topic-progress', demoCompletedTopicIds)) : []);
   const [academicLoading, setAcademicLoading] = useState(false);
@@ -71,11 +79,14 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     setMaterials([]);
     setNotes([]);
     setQuizzes([]);
+    setStudySessions([]);
     setMaterialsLoading(false);
     setNotesLoading(false);
     setQuizzesLoading(false);
+    setStudySessionsLoading(false);
     setAcademicLoading(false);
     setAcademicSubjects([]);
+    setStudySessionsError(null);
     setCompletedTopicIds([]);
     if (!user) return;
     let mounted = true;
@@ -91,6 +102,10 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     listQuizzes().then((items) => { if (mounted) { setQuizzes(items); setQuizzesError(null); } })
       .catch((error: unknown) => { if (mounted) setQuizzesError(error instanceof Error ? error.message : 'Could not load quizzes.'); })
       .finally(() => { if (mounted) setQuizzesLoading(false); });
+    setStudySessionsLoading(true);
+    listStudySessions().then((items) => { if (mounted) { setStudySessions(items); setStudySessionsError(null); } })
+      .catch((error: unknown) => { if (mounted) setStudySessionsError(error instanceof Error ? error.message : 'Could not load study sessions.'); })
+      .finally(() => { if (mounted) setStudySessionsLoading(false); });
     setAcademicLoading(true);
     loadAcademicStructure().then((result) => {
       if (mounted) {
@@ -107,7 +122,7 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     };
   }, [configured, user?.id]);
   const value = useMemo<CampusContextValue>(() => ({
-    materials, notes, quizzes, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, materialsLoading, materialsError, notesLoading, notesSaving, notesError, quizzesLoading, quizzesError,
+    materials, notes, quizzes, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, materialsLoading, materialsError, notesLoading, notesSaving, notesError, quizzesLoading, quizzesError, studySessions, studySessionsLoading, studySessionsError,
     addMaterial: async (file, subject) => {
       try {
         const item = configured
@@ -168,6 +183,24 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
         return { score: null, error: message };
       }
     },
+    addStudySession: async (session) => {
+      try {
+        const saved = configured
+          ? await createStudySession(session)
+          : { ...session, id: crypto.randomUUID() };
+        setStudySessions((previous) => {
+          const next = [saved, ...previous].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+          if (demoMode) persist('cm-study-sessions', next);
+          return next;
+        });
+        setStudySessionsError(null);
+        return { error: null };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not save this study session.';
+        setStudySessionsError(message);
+        return { error: message };
+      }
+    },
     toggleTopicCompletion: async (topicId, completed) => {
       try {
         if (configured) await setTopicCompleted(topicId, completed);
@@ -182,7 +215,7 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
         return { error: message };
       }
     },
-  }), [materials, materialsLoading, materialsError, notes, notesLoading, notesSaving, notesError, quizzes, quizzesLoading, quizzesError, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, configured, demoMode]);
+  }), [materials, materialsLoading, materialsError, notes, notesLoading, notesSaving, notesError, quizzes, quizzesLoading, quizzesError, studySessions, studySessionsLoading, studySessionsError, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, configured, demoMode]);
   return <CampusContext.Provider value={value}>{children}</CampusContext.Provider>;
 }
 export function useCampusData() {

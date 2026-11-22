@@ -32,3 +32,30 @@
   .notes-workspace.show-note-list .notes-sidebar{display:flex}
   .notes-workspace.show-note-list .note-editor{display:none}
 }
+.study-session-backdrop{align-items:flex-start;padding:12vh 16px 24px;overflow:auto}
+.study-session-dialog{max-width:450px}
+.study-session-subject{display:flex;flex-direction:column;gap:7px;color:#65656f;font-size:11px;font-weight:600;margin:14px 0}
+.study-session-subject select{width:100%;border:1px solid #e7e7ed;border-radius:7px;padding:10px 11px;color:#555660;background:#fff;font-size:12px}
+.focus-goal-picker{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;color:#787983;font-size:10px}
+.focus-goal-picker>div{display:flex;gap:5px}
+.focus-goal-picker button{border:1px solid #e7e6ed;background:#fff;border-radius:6px;color:#73737d;padding:6px 8px;font-size:10px}
+.focus-goal-picker button.selected{border-color:#b8afe2;background:#f5f2fc;color:#6553b3}
+.study-timer{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#f8f7fb;border:1px solid #efedf4;border-radius:10px;padding:20px 12px;margin:17px 0}
+.study-timer-icon{color:#7865c8}
+.study-timer strong{font:700 42px Manrope,sans-serif;letter-spacing:1px;color:#292735;font-variant-numeric:tabular-nums}
+.study-timer>span:last-child{font-size:10px;color:#92919b;text-align:center}
+.study-timer.goal-reached{background:#f1f8f4;border-color:#dfeee5}
+.study-session-actions{display:flex;gap:8px}
+.study-session-actions .button{flex:1}
+.study-session-success{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 0 1px}
+.study-session-success-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:#eaf5ef;color:#58967e;margin-bottom:13px}
+.study-session-success h2{margin:7px 0}
+.study-session-success p{font-size:12px;color:#92929b;line-height:1.6;margin:0 0 16px}
+.study-session-success .button{min-width:130px}
+@media(max-width:600px){
+  .welcome-row{gap:8px}
+  .welcome-row .button{font-size:10px;white-space:nowrap;padding:8px;gap:5px}
+  .welcome-row .button svg{width:15px;height:15px}
+  .study-session-dialog{padding:22px 18px}
+  .study-session-actions .button{font-size:10px;padding:9px 8px}
+}
