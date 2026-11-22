@@ -11,6 +11,8 @@ import { NotFoundPage } from '../shared/components/feedback/NotFoundPage';
 import { ProtectedRoute } from './guards/ProtectedRoute';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { SignUpPage } from '../features/auth/pages/SignUpPage';
+import { ModeratorRoute } from './guards/ModeratorRoute';
+import { ModerationPage } from '../features/moderation/pages/ModerationPage';
 
 export function AppRouter() {
   return <Routes>
@@ -24,6 +26,7 @@ export function AppRouter() {
     <Route path="/practice" element={<QuizzesPage />} />
     <Route path="/progress" element={<ProgressPage />} />
     <Route path="/reports" element={<ReportsPage />} />
+    <Route element={<ModeratorRoute />}><Route path="/moderation" element={<ModerationPage />} /></Route>
     <Route path="/dashboard" element={<Navigate to="/" replace />} />
     <Route path="*" element={<NotFoundPage />} />
     </Route></Route>

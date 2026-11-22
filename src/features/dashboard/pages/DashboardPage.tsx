@@ -15,7 +15,7 @@ export function DashboardPage() {
   const completedQuizzes = quizzes.filter((quiz) => quiz.attempts > 0).length;
   const displayName = (user?.user_metadata?.display_name as string | undefined)
     || user?.email?.split('@')[0]
-    || 'Arjun Sharma';
+    || 'Student';
   const firstName = displayName.trim().split(/\s+/)[0] || 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';

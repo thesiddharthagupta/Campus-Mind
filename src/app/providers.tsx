@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { demoAcademicStructure, demoCompletedTopicIds, demoMaterials, demoNotes, demoQuizzes } from '../features/dashboard/data/demoData';
 import type { Material, Note, Quiz, StudySession, Subject } from '../shared/types/common';
 import type { AcademicSubject } from '../features/academic/types/academic.types';
 import { AuthProvider } from '../features/auth/components/AuthProvider';
@@ -33,14 +32,11 @@ type CampusContextValue = {
   toggleBookmark: (id: string) => Promise<{ error: string | null }>;
   addNote: (note: Note) => Promise<{ note: Note | null; error: string | null }>;
   updateNote: (note: Note) => void;
-  completeQuiz: (id: string, answers: Record<string, number>, localScore: number) => Promise<{ score: number | null; error: string | null }>;
+  completeQuiz: (id: string, answers: Record<string, number>) => Promise<{ score: number | null; error: string | null }>;
   addStudySession: (session: Omit<StudySession, 'id'>) => Promise<{ error: string | null }>;
   toggleTopicCompletion: (topicId: string, completed: boolean) => Promise<{ error: string | null }>;
 };
 const CampusContext = createContext<CampusContextValue | null>(null);
-const readStored = <T,>(key: string, fallback: T): T => {
-  try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; }
-};
 function withCompletion(subjects: AcademicSubject[], completedIds: string[]) {
   const completed = new Set(completedIds);
   return subjects.map((subject) => {
@@ -53,27 +49,26 @@ export function AppProviders({ children }: { children: ReactNode }) {
 }
 
 function CampusDataProvider({ children }: { children: ReactNode }) {
-  const { configured, demoMode, user } = useAuth();
-  const [materials, setMaterials] = useState<Material[]>(() => demoMode ? readStored('cm-materials', demoMaterials) : []);
+  const { configured, user } = useAuth();
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [materialsError, setMaterialsError] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Note[]>(() => demoMode ? readStored('cm-notes', demoNotes) : []);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [quizzes, setQuizzes] = useState<Quiz[]>(() => demoMode ? readStored('cm-quizzes', demoQuizzes) : []);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [quizzesLoading, setQuizzesLoading] = useState(false);
   const [quizzesError, setQuizzesError] = useState<string | null>(null);
-  const [studySessions, setStudySessions] = useState<StudySession[]>(() => demoMode ? readStored('cm-study-sessions', []) : []);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [studySessionsLoading, setStudySessionsLoading] = useState(false);
   const [studySessionsError, setStudySessionsError] = useState<string | null>(null);
-  const [completedTopicIds, setCompletedTopicIds] = useState<string[]>(() => demoMode ? readStored('cm-topic-progress', demoCompletedTopicIds) : []);
-  const [academicSubjects, setAcademicSubjects] = useState<AcademicSubject[]>(() => demoMode ? withCompletion(demoAcademicStructure, readStored('cm-topic-progress', demoCompletedTopicIds)) : []);
+  const [completedTopicIds, setCompletedTopicIds] = useState<string[]>([]);
+  const [academicSubjects, setAcademicSubjects] = useState<AcademicSubject[]>([]);
   const [academicLoading, setAcademicLoading] = useState(false);
   const [academicError, setAcademicError] = useState<string | null>(null);
   const noteSaveTimers = useRef(new Map<string, number>());
   const subjects: Subject[] = academicSubjects;
-  const persist = <T,>(key: string, value: T) => localStorage.setItem(key, JSON.stringify(value));
   useEffect(() => {
     if (!configured) return;
     setMaterials([]);
@@ -125,10 +120,9 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     materials, notes, quizzes, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, materialsLoading, materialsError, notesLoading, notesSaving, notesError, quizzesLoading, quizzesError, studySessions, studySessionsLoading, studySessionsError,
     addMaterial: async (file, subject) => {
       try {
-        const item = configured
-          ? await uploadMaterial(file, subject)
-          : { id: crypto.randomUUID(), title: file.name.replace(/\.[^.]+$/, ''), subject, kind: 'Lecture notes' as const, author: 'Arjun Sharma', date: 'Just now', size: `${Math.max(1, Math.round(file.size / 1024))} KB`, color: 'blue', bookmarked: false, pages: 1, description: 'Your uploaded study material.' };
-        setMaterials((previous) => { const next = [item, ...previous]; if (demoMode) persist('cm-materials', next); return next; });
+        if (!configured) throw new Error('Connect CampusMind to Supabase before uploading materials.');
+        const item = await uploadMaterial(file, subject);
+        setMaterials((previous) => [item, ...previous]);
         setMaterialsError(null);
         return { error: null };
       } catch (error) {
@@ -141,15 +135,17 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
       try {
         const current = materials.find((item) => item.id === id);
         if (!current) return { error: 'This material is no longer available.' };
-        if (configured) await setMaterialBookmark(id, !current.bookmarked);
-        setMaterials((previous) => { const next = previous.map((item) => item.id === id ? { ...item, bookmarked: !item.bookmarked } : item); if (demoMode) persist('cm-materials', next); return next; });
+        if (!configured) throw new Error('Connect CampusMind to Supabase before changing bookmarks.');
+        await setMaterialBookmark(id, !current.bookmarked);
+        setMaterials((previous) => previous.map((item) => item.id === id ? { ...item, bookmarked: !item.bookmarked } : item));
         return { error: null };
       } catch (error) { return { error: error instanceof Error ? error.message : 'Bookmark could not be updated.' }; }
     },
     addNote: async (note) => {
       try {
-        const savedNote = configured ? await createNote(note) : note;
-        setNotes((previous) => { const next = [savedNote, ...previous]; if (demoMode) persist('cm-notes', next); return next; });
+        if (!configured) throw new Error('Connect CampusMind to Supabase before creating notes.');
+        const savedNote = await createNote(note);
+        setNotes((previous) => [savedNote, ...previous]);
         setNotesError(null);
         return { note: savedNote, error: null };
       } catch (error) {
@@ -159,22 +155,24 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
       }
     },
     updateNote: (note) => {
-      setNotes((previous) => { const next = previous.map((item) => item.id === note.id ? note : item); if (demoMode) persist('cm-notes', next); return next; });
-      if (configured) {
-        const priorTimer = noteSaveTimers.current.get(note.id);
-        if (priorTimer) window.clearTimeout(priorTimer);
-        setNotesSaving(true);
-        const timer = window.setTimeout(() => {
-          noteSaveTimers.current.delete(note.id);
-          void saveRemoteNote(note).then(() => setNotesError(null)).catch((error: unknown) => setNotesError(error instanceof Error ? error.message : 'Could not save this note.')).finally(() => setNotesSaving(noteSaveTimers.current.size > 0));
-        }, 650);
-        noteSaveTimers.current.set(note.id, timer);
+      if (!configured) {
+        setNotesError('Connect CampusMind to Supabase before editing notes.');
+        return;
       }
+      setNotes((previous) => previous.map((item) => item.id === note.id ? note : item));
+      const priorTimer = noteSaveTimers.current.get(note.id);
+      if (priorTimer) window.clearTimeout(priorTimer);
+      setNotesSaving(true);
+      const timer = window.setTimeout(() => {
+        noteSaveTimers.current.delete(note.id);
+        void saveRemoteNote(note).then(() => setNotesError(null)).catch((error: unknown) => setNotesError(error instanceof Error ? error.message : 'Could not save this note.')).finally(() => setNotesSaving(noteSaveTimers.current.size > 0));
+      }, 650);
+      noteSaveTimers.current.set(note.id, timer);
     },
-    completeQuiz: async (id, answers, localScore) => {
+    completeQuiz: async (id, answers) => {
       try {
-        const score = configured ? await submitQuizAttempt(id, answers) : localScore;
-        setQuizzes((previous) => { const next = previous.map((item) => item.id === id ? { ...item, lastScore: score, attempts: item.attempts + 1 } : item); if (demoMode) persist('cm-quizzes', next); return next; });
+        const score = await submitQuizAttempt(id, answers);
+        setQuizzes((previous) => previous.map((item) => item.id === id ? { ...item, lastScore: score, attempts: item.attempts + 1 } : item));
         setQuizzesError(null);
         return { score, error: null };
       } catch (error) {
@@ -185,12 +183,10 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     },
     addStudySession: async (session) => {
       try {
-        const saved = configured
-          ? await createStudySession(session)
-          : { ...session, id: crypto.randomUUID() };
+        if (!configured) throw new Error('Connect CampusMind to Supabase before saving study sessions.');
+        const saved = await createStudySession(session);
         setStudySessions((previous) => {
           const next = [saved, ...previous].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-          if (demoMode) persist('cm-study-sessions', next);
           return next;
         });
         setStudySessionsError(null);
@@ -203,11 +199,11 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
     },
     toggleTopicCompletion: async (topicId, completed) => {
       try {
-        if (configured) await setTopicCompleted(topicId, completed);
+        if (!configured) throw new Error('Connect CampusMind to Supabase before saving topic progress.');
+        await setTopicCompleted(topicId, completed);
         const next = completed ? [...new Set([...completedTopicIds, topicId])] : completedTopicIds.filter((id) => id !== topicId);
         setCompletedTopicIds(next);
         setAcademicSubjects((current) => withCompletion(current, next));
-        if (demoMode) persist('cm-topic-progress', next);
         return { error: null };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not update topic progress.';
@@ -215,7 +211,7 @@ function CampusDataProvider({ children }: { children: ReactNode }) {
         return { error: message };
       }
     },
-  }), [materials, materialsLoading, materialsError, notes, notesLoading, notesSaving, notesError, quizzes, quizzesLoading, quizzesError, studySessions, studySessionsLoading, studySessionsError, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, configured, demoMode]);
+  }), [materials, materialsLoading, materialsError, notes, notesLoading, notesSaving, notesError, quizzes, quizzesLoading, quizzesError, studySessions, studySessionsLoading, studySessionsError, subjects, academicSubjects, completedTopicIds, academicLoading, academicError, configured]);
   return <CampusContext.Provider value={value}>{children}</CampusContext.Provider>;
 }
 export function useCampusData() {

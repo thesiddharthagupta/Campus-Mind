@@ -3,7 +3,6 @@ import type { Material } from '../../../shared/types/common';
 
 const BUCKET = 'study-materials';
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-const acceptedTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 const kindFrom = (value: string): Material['kind'] => value === 'past_paper' ? 'Past paper' : value === 'study_guide' ? 'Study guide' : value === 'reference' ? 'Reference' : 'Lecture notes';
 const resourceTypeFrom = (value: Material['kind']) => value === 'Past paper' ? 'past_paper' : value === 'Study guide' ? 'study_guide' : value === 'Reference' ? 'reference' : 'notes';
 const humanSize = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -30,22 +29,34 @@ export async function listMaterials(): Promise<Material[]> {
 export async function uploadMaterial(file: File, subjectName: string): Promise<Material> {
   if (!supabase) throw new Error('Supabase is not configured.');
   if (file.size > MAX_UPLOAD_BYTES) throw new Error('Choose a file smaller than 25 MB.');
-  if (!acceptedTypes.has(file.type)) throw new Error('This file type is not supported. Choose a PDF, PNG, JPG, DOC, DOCX, or TXT file.');
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) throw new Error('Sign in before uploading a resource.');
   const { data: subject, error: subjectError } = await supabase.from('subjects').select('id').eq('name', subjectName).limit(1).maybeSingle();
   if (subjectError) throw new Error(subjectError.message);
   if (!subject) throw new Error(`The subject “${subjectName}” is not in the connected academic structure yet.`);
-  const safeName = file.name.normalize('NFKD').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(-100) || 'study-resource';
-  const storagePath = `${user.id}/${crypto.randomUUID()}-${safeName}`;
-  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, file, { contentType: file.type, upsert: false });
-  if (uploadError) throw new Error(uploadError.message);
-  const { data: row, error: insertError } = await supabase.from('materials').insert({ owner_id: user.id, subject_id: subject.id, title: file.name.replace(/\.[^.]+$/, ''), description: '', resource_type: 'notes', storage_path: storagePath, mime_type: file.type, byte_size: file.size, status: 'pending' }).select('id,title,description,resource_type,storage_path,byte_size,created_at').single();
-  if (insertError) {
-    await supabase.storage.from(BUCKET).remove([storagePath]);
-    throw new Error(insertError.message);
+  const form = new FormData();
+  form.set('file', file);
+  form.set('subjectId', subject.id);
+  const { data, error } = await supabase.functions.invoke<{
+    id: string;
+    title: string;
+    description: string;
+    resource_type: string;
+    storage_path: string;
+    byte_size: number;
+    created_at: string;
+  }>('upload-material', { body: form });
+  if (error) {
+    let message = error.message;
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const body = await context.json() as { error?: string };
+        if (body.error) message = body.error;
+      } catch { /* Keep the SDK's error message when the response isn't JSON. */ }
+    }
+    throw new Error(message);
   }
-  return { id: row.id, title: row.title, subject: subjectName, kind: kindFrom(row.resource_type), author: 'You', date: dateLabel(row.created_at), size: humanSize(file.size), color: 'blue', bookmarked: false, pages: 1, description: row.description || 'Uploaded for moderator review.', storagePath: row.storage_path };
+  if (!data) throw new Error('The upload service returned no material.');
+  return { id: data.id, title: data.title, subject: subjectName, kind: kindFrom(data.resource_type), author: 'You', date: dateLabel(data.created_at), size: humanSize(data.byte_size), color: 'blue', bookmarked: false, pages: 1, description: data.description || 'Uploaded for moderator review.', storagePath: data.storage_path };
 }
 
 export async function setMaterialBookmark(materialId: string, bookmarked: boolean): Promise<void> {
